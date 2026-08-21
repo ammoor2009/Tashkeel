@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
 
 # إعداد واجهة الصفحة
 st.set_page_config(page_title="مُصحّح اللغة العربية للناطقين بغيرها", layout="centered")
@@ -7,20 +7,18 @@ st.set_page_config(page_title="مُصحّح اللغة العربية للناط
 st.title("مُصحّح ومُشكّل اللغة العربية")
 st.write("أداة تعليمية للطلبة غير الناطقين بالعربية لتشكيل النصوص وتصحيح الأخطاء النحوية مع الشرح الإعرابي.")
 
-# تهيئة المفتاح من Secrets
+# جلب المفتاح من Secrets
 api_key = st.secrets.get("GEMINI_API_KEY")
 
 if not api_key:
     st.error("يرجى إضافة GEMINI_API_KEY في ملف Secrets في Streamlit Cloud.")
     st.stop()
 
-genai.configure(api_key=api_key)
-
-# التحكم في النص باستخدام حالة الجلسة (Session State)
+# إدارة حالة النص
 if "user_text" not in st.session_state:
     st.session_state.user_text = ""
 
-# صندوق النص (يتسع لـ 150 كلمة تقريبًا)
+# صندوق أدخال النص
 input_text = st.text_area(
     label="أدخل النص العربي هنا (حتى 150 كلمة):",
     value=st.session_state.user_text,
@@ -29,7 +27,6 @@ input_text = st.text_area(
     key="text_input_area"
 )
 
-# أزرار التحكم
 col1, col2 = st.columns([1, 1])
 
 with col1:
@@ -38,12 +35,10 @@ with col1:
 with col2:
     btn_clear = st.button("حذف النص", use_container_width=True)
 
-# معالجة زر "حذف النص"
 if btn_clear:
     st.session_state.user_text = ""
     st.rerun()
 
-# معالجة زر "تشكيل النص وتصويبه"
 if btn_process:
     if not input_text.strip():
         st.warning("يرجى إدخال نص أولاً.")
@@ -66,15 +61,27 @@ if btn_process:
 النص المطلوب معالجته:
 "{input_text}"
 """
-
         with st.spinner("جاري تشكيل النص وتحليله نحويًا..."):
             try:
-                model = genai.GenerativeModel("gemini-1.5-flash")
-                response = model.generate_content(prompt)
+                # الاستدعاء المباشر عبر REST API لتجنب مشاكل استيراد المكتبات
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                headers = {"Content-Type": "application/json"}
+                payload = {
+                    "contents": [{
+                        "parts": [{"text": prompt}]
+                    }]
+                }
                 
-                st.markdown("---")
-                st.subheader("النتيجة والتصويب:")
-                st.markdown(response.text, unsafe_allow_html=True)
+                response = requests.post(url, json=payload, headers=headers)
+                result = response.json()
                 
+                if response.status_code == 200:
+                    output_text = result['candidates'][0]['content']['parts'][0]['text']
+                    st.markdown("---")
+                    st.subheader("النتيجة والتصويب:")
+                    st.markdown(output_text, unsafe_allow_html=True)
+                else:
+                    st.error(f"خطأ من API: {result.get('error', {}).get('message', 'حدث خطأ غير معروف')}")
+                    
             except Exception as e:
-                st.error(f"حدث خطأ أثناء التواصل مع النموذج: {e}")
+                st.error(f"حدث خطأ أثناء الاتصال: {e}")
