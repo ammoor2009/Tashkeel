@@ -1,6 +1,5 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 # إعداد واجهة الصفحة
 st.set_page_config(page_title="مُصحّح اللغة العربية للناطقين بغيرها", layout="centered")
@@ -8,14 +7,14 @@ st.set_page_config(page_title="مُصحّح اللغة العربية للناط
 st.title("مُصحّح ومُشكّل اللغة العربية")
 st.write("أداة تعليمية للطلبة غير الناطقين بالعربية لتشكيل النصوص وتصحيح الأخطاء النحوية مع الشرح الإعرابي.")
 
-# تهيئة المفتاح والعميل
+# تهيئة المفتاح من Secrets
 api_key = st.secrets.get("GEMINI_API_KEY")
 
 if not api_key:
-    st.error("يرجى إضافة GEMINI_API_KEY في ملف التكوين أو Secrets.")
+    st.error("يرجى إضافة GEMINI_API_KEY في ملف Secrets في Streamlit Cloud.")
     st.stop()
 
-client = genai.Client(api_key=api_key)
+genai.configure(api_key=api_key)
 
 # التحكم في النص باستخدام حالة الجلسة (Session State)
 if "user_text" not in st.session_state:
@@ -30,7 +29,7 @@ input_text = st.text_area(
     key="text_input_area"
 )
 
-# تعيين أزرار التحكم في صف واحد
+# أزرار التحكم
 col1, col2 = st.columns([1, 1])
 
 with col1:
@@ -47,9 +46,8 @@ if btn_clear:
 # معالجة زر "تشكيل النص وتصويبه"
 if btn_process:
     if not input_text.strip():
-        st.warning("يرجى أدخال نص أولاً.")
+        st.warning("يرجى إدخال نص أولاً.")
     else:
-        # صياغة التعليمات البرمجية للنموذج (System Instruction / Prompt)
         prompt = f"""
 أنت معلم لغة عربية متمرس لغير الناطقين بها.
 قم بالمهام التالية للنص المرفق:
@@ -71,14 +69,11 @@ if btn_process:
 
         with st.spinner("جاري تشكيل النص وتحليله نحويًا..."):
             try:
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt
-                )
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                response = model.generate_content(prompt)
                 
                 st.markdown("---")
                 st.subheader("النتيجة والتصويب:")
-                # استخدام unsafe_allow_html لتفعيل اللون الأحمر المكتوب بلغة HTML
                 st.markdown(response.text, unsafe_allow_html=True)
                 
             except Exception as e:
