@@ -63,6 +63,7 @@ if btn_process:
 """
         with st.spinner("جاري تشكيل النص وتحليله نحويًا..."):
             try:
+                # رابط النموذج المحدث والمفعل
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
                 headers = {"Content-Type": "application/json"}
                 payload = {
