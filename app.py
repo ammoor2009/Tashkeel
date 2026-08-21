@@ -18,7 +18,7 @@ if not api_key:
 if "user_text" not in st.session_state:
     st.session_state.user_text = ""
 
-# صندوق أدخال النص
+# صندوق إدخال النص
 input_text = st.text_area(
     label="أدخل النص العربي هنا (حتى 150 كلمة):",
     value=st.session_state.user_text,
@@ -63,8 +63,7 @@ if btn_process:
 """
         with st.spinner("جاري تشكيل النص وتحليله نحويًا..."):
             try:
-                # الاستدعاء المباشر عبر REST API لتجنب مشاكل استيراد المكتبات
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
                 headers = {"Content-Type": "application/json"}
                 payload = {
                     "contents": [{
