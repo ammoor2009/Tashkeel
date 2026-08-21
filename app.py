@@ -211,4 +211,14 @@ if btn_process:
 
                 st.error(
                     f"حدث خطأ غير متوقع:\n\n{e}"
-                )
+             )
+# الفوتر في أسفل الصفحة
+st.markdown("---")
+st.markdown(
+    """
+    <div style="text-align: center; color: #666666; font-size: 14px; padding: 10px;">
+        تطوير د. عمر الرواجفة © مختبر اللسانيات الحاسوبية وتحليل الخطاب
+    </div>
+    """,
+    unsafe_allow_html=True
+)
