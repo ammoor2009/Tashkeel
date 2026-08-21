@@ -1,316 +1,85 @@
-import time
 import streamlit as st
 from google import genai
+from google.genai import types
 
-# =========================================================
-# 1. إعدادات الصفحة
-# =========================================================
+# إعداد واجهة الصفحة
+st.set_page_config(page_title="مُصحّح اللغة العربية للناطقين بغيرها", layout="centered")
 
-st.set_page_config(
-    page_title="مختبر التشكيل العربي",
-    page_icon="📖",
-    layout="wide"
+st.title("مُصحّح ومُشكّل اللغة العربية")
+st.write("أداة تعليمية للطلبة غير الناطقين بالعربية لتشكيل النصوص وتصحيح الأخطاء النحوية مع الشرح الإعرابي.")
+
+# تهيئة المفتاح والعميل
+api_key = st.secrets.get("GEMINI_API_KEY")
+
+if not api_key:
+    st.error("يرجى إضافة GEMINI_API_KEY في ملف التكوين أو Secrets.")
+    st.stop()
+
+client = genai.Client(api_key=api_key)
+
+# التحكم في النص باستخدام حالة الجلسة (Session State)
+if "user_text" not in st.session_state:
+    st.session_state.user_text = ""
+
+# صندوق النص (يتسع لـ 150 كلمة تقريبًا)
+input_text = st.text_area(
+    label="أدخل النص العربي هنا (حتى 150 كلمة):",
+    value=st.session_state.user_text,
+    height=200,
+    max_chars=1000,
+    key="text_input_area"
 )
 
-# =========================================================
-# 2. التنسيق والتصميم
-# =========================================================
-
-st.markdown("""
-<style>
-
-/* الخلفية الرئيسية */
-.stApp {
-    background-color: #f3efe6 !important;
-}
-
-/* منطقة المحتوى */
-.block-container {
-    padding-top: 2rem;
-    padding-bottom: 3rem;
-}
-
-/* العنوان */
-h1 {
-    color: #3b3025 !important;
-    text-align: center !important;
-    font-weight: 800 !important;
-}
-
-/* العناوين الفرعية */
-h2, h3 {
-    color: #4b3a2a !important;
-}
-
-/* النصوص */
-.stMarkdown {
-    direction: rtl;
-    text-align: right;
-}
-
-/* مربع إدخال النص */
-.stTextArea textarea {
-    font-size: 17px !important;
-    line-height: 1.9 !important;
-    direction: rtl !important;
-    text-align: right !important;
-    border-radius: 12px !important;
-    background-color: #ffffff !important;
-    color: #1e1e1e !important;
-    border: 1px solid #d5c8b5 !important;
-}
-
-/* مربع النص */
-div[data-baseweb="textarea"] textarea {
-    direction: rtl !important;
-    text-align: right !important;
-    color: #1e1e1e !important;
-    background-color: #ffffff !important;
-}
-
-/* تسميات العناصر */
-label {
-    direction: rtl !important;
-    text-align: right !important;
-}
-
-/* الأزرار */
-.stButton > button {
-    border-radius: 10px !important;
-    font-size: 16px !important;
-    font-weight: 700 !important;
-    min-height: 48px !important;
-}
-
-/* نتيجة التشكيل */
-div[data-testid="stMarkdownContainer"] {
-    direction: rtl;
-    text-align: right;
-    line-height: 2.1;
-}
-
-/* الخط الفاصل */
-hr {
-    border-color: #d8cbb8 !important;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# 3. واجهة التطبيق
-# =========================================================
-
-st.title("📖 مختبر التشكيل العربي")
-
-st.subheader("د. عمر الرواجفة | قسم اللغة العربية وآدابها")
-
-st.write(
-    "أداة أكاديمية تفاعلية لتشكيل النصوص العربية "
-    "تشكيلًا كاملًا وفق قواعد اللغة العربية والسياق."
-)
-
-st.write("---")
-
-# =========================================================
-# 4. قراءة مفتاح Gemini من Streamlit Secrets
-# =========================================================
-
-try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-except Exception:
-    api_key = None
-
-# =========================================================
-# 5. إنشاء عميل Gemini
-# =========================================================
-
-client = None
-
-if api_key:
-    try:
-        client = genai.Client(api_key=api_key)
-    except Exception as e:
-        st.error(f"تعذر إنشاء اتصال Gemini: {e}")
-
-# =========================================================
-# 6. حفظ النص في Session State
-# =========================================================
-
-if "text" not in st.session_state:
-    st.session_state.text = ""
-
-# =========================================================
-# 7. مربع النص
-# =========================================================
-
-text_input = st.text_area(
-    "ضع النص العربي هنا للتشكيل:",
-    value=st.session_state.text,
-    height=350,
-    placeholder="انسخ النص العربي واكتبه هنا..."
-)
-
-# =========================================================
-# 8. الأزرار
-# =========================================================
-
-col1, col2 = st.columns([3, 1])
+# تعيين أزرار التحكم في صف واحد
+col1, col2 = st.columns([1, 1])
 
 with col1:
-    btn_diacritize = st.button(
-        "🔤 تَشْكِيلُ جَمِيعِ الْحُرُوفِ",
-        type="primary",
-        use_container_width=True
-    )
+    btn_process = st.button("تشكيل النص وتصويبه", type="primary", use_container_width=True)
 
 with col2:
-    btn_clear = st.button(
-        "🗑️ مسح النص",
-        use_container_width=True
-    )
+    btn_clear = st.button("حذف النص", use_container_width=True)
 
-# =========================================================
-# 9. زر المسح
-# =========================================================
-
+# معالجة زر "حذف النص"
 if btn_clear:
-    st.session_state.text = ""
+    st.session_state.user_text = ""
     st.rerun()
 
-# =========================================================
-# 10. التشكيل
-# =========================================================
-
-if btn_diacritize:
-
-    # -----------------------------------------------------
-    # التحقق من API Key
-    # -----------------------------------------------------
-
-    if not api_key:
-        st.error(
-            "⚠️ لم يتم العثور على GEMINI_API_KEY.\n\n"
-            "اذهب إلى Streamlit → Settings → Secrets "
-            "وأضف مفتاح Gemini بهذا الاسم."
-        )
-
-    # -----------------------------------------------------
-    # التحقق من وجود النص
-    # -----------------------------------------------------
-
-    elif not text_input.strip():
-        st.warning("⚠️ يرجى إدخال النص العربي أولًا.")
-
-    # -----------------------------------------------------
-    # التحقق من الاتصال
-    # -----------------------------------------------------
-
-    elif client is None:
-        st.error("⚠️ تعذر إنشاء الاتصال بخدمة Gemini.")
-
+# معالجة زر "تشكيل النص وتصويبه"
+if btn_process:
+    if not input_text.strip():
+        st.warning("يرجى أدخال نص أولاً.")
     else:
-
-        # حفظ النص
-        st.session_state.text = text_input
-
-        # -------------------------------------------------
-        # إعداد طلب التشكيل
-        # -------------------------------------------------
-
+        # صياغة التعليمات البرمجية للنموذج (System Instruction / Prompt)
         prompt = f"""
-أنت خبير متخصص في اللغة العربية والنحو والصرف والضبط بالشكل والقراءة العربية الفصيحة.
+أنت معلم لغة عربية متمرس لغير الناطقين بها.
+قم بالمهام التالية للنص المرفق:
 
-أريد منك تشكيل النص العربي الآتي تشكيلًا كاملًا ودقيقًا وفق قواعد اللغة العربية، مع الاعتماد على السياق النحوي والصرفي والدلالي لكل كلمة.
+1. أعد كتابة النص كاملاً مع **التشكيل التام** وضبط أواخر الكلمات.
+2. إذا كان هناك **خطأ نحوي أو إملائي**، قم بتصحيحه واجعل الكلمة المصححة باللون الأحمر باستخدام تنسيق HTML كالتالي:
+   `<span style="color: red; font-weight: bold;">الكلمة_المصححة</span>`.
+3. أسفل النص المُشكّل والمُصحّح، أورد جدولاً أو نقاطاً واضحة توضح:
+   - الكلمة الخطأ (التي أدخلها الطالب).
+   - التصويب الصحيح.
+   - سبب الخطأ النحوي بأسلوب سهل يناسب الطلاب غير الناطقين بالعربية.
+   - الإعراب التفصيلي للكلمة الصحيحة في موقعها من الجملة.
 
-النص:
--------------------------
-{text_input}
--------------------------
+إذا لم تكن هناك أخطاء، اشكر الطالب واكتفِ بتقديم النص مشكولاً شكلاً تاماً.
 
-نفّذ المهمة وفق القواعد الآتية بدقة شديدة:
-
-1. أضف الحركات إلى جميع الحروف التي تحتاج إلى تشكيل (تشكيل تام).
-2. ضع: الفتحة، الضمة، الكسرة، السكون، الشدة، والتنوين بأنواعه.
-3. اضبط أواخر الكلمات ضبطًا نحويًا صحيحًا وفق موقعها الإعرابي في الجملة.
-4. فرّق بين الكلمات المتشابهة التي يختلف ضبطها بحسب السياق.
-5. راعِ قواعد النحو، الصرف، الإعلال والإبدال، التعدية واللزوم، والمطابقة.
-6. في الشعر: حافظ على النص كما هو، ولا تغيّر ألفاظه أو ترتيب أبياته، واضبطه عروضياً ونحويناً.
-7. لا تغيّر أي كلمة من النص الأصلي، ولا تستبدل كلمة بأخرى، ولا تضف أو تحذف أي كلمة.
-8. لا تعِد صياغة الجمل، ولا تشرح القواعد، ولا تضف مقدمة أو خاتمة.
-9. لا تستخدم علامات Markdown في الإجابة، وأعد النص المشكول فقط.
-10. حافظ على الفقرات، الأسطر، وعلامات الترقيم كما هي.
-
-أعد النص المشكول فقط.
+النص المطلوب معالجته:
+"{input_text}"
 """
 
-        # -------------------------------------------------
-        # إرسال الطلب إلى Gemini مع إعادة المحاولة
-        # -------------------------------------------------
-
-        with st.spinner(
-            "⏳ جارٍ تشكيل النص وضبطه وفق قواعد اللغة العربية..."
-        ):
-
-            response = None
-            last_error = None
-
-            # ثلاث محاولات تلقائية
-            for attempt in range(3):
-
-                try:
-
-                    response = client.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=prompt
-                    )
-
-                    # نجاح الطلب
-                    if response and response.text:
-                        break
-
-                    last_error = "لم يُرجع النموذج نتيجة نصية."
-
-                except Exception as e:
-
-                    last_error = e
-
-                    # الانتظار قبل إعادة المحاولة
-                    if attempt < 2:
-                        time.sleep(3)
-
-            # -------------------------------------------------
-            # عرض النتيجة
-            # -------------------------------------------------
-
-            if response and response.text:
-
-                st.write("---")
-
-                st.markdown(
-                    "### 📚 النص بعد التشكيل"
+        with st.spinner("جاري تشكيل النص وتحليله نحويًا..."):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt
                 )
-
-                st.text_area(
-                    "النص المشكول:",
-                    value=response.text,
-                    height=400
-                )
-
-            else:
-
-                st.error(
-                    "❌ تعذر الحصول على النص المشكول بعد 3 محاولات."
-                )
-
-                st.code(str(last_error))
-
-# =========================================================
-# 11. التذييل
-# =========================================================
-
-st.write("---")
-
-st.caption(
-    "تطوير د. عمر الرواجفة © مختبر اللسانيات الحاسوبية وتحليل الخطاب"
-)
+                
+                st.markdown("---")
+                st.subheader("النتيجة والتصويب:")
+                # استخدام unsafe_allow_html لتفعيل اللون الأحمر المكتوب بلغة HTML
+                st.markdown(response.text, unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"حدث خطأ أثناء التواصل مع النموذج: {e}")
